@@ -1,0 +1,509 @@
+-- ==========================================
+-- FA WINNER KING SCRIPT V1 (Updated TSB V3 Link)
+-- ==========================================
+
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Global Variables
+local noclipEnabled = false
+local infJumpEnabled = false
+local flyEnabled = false
+local bodyGyro, bodyVelocity
+local Camera = workspace.CurrentCamera
+
+-- Discord Webhook Function
+local webhookUrl = "https://discord.com/api/webhooks/1558080999038918680/0qXXJLbttTw50-w6i1pRlpkjN3CIg9tLIr2P1X5gi-DLTU9aAePM0PZIbFvWHfy36tld"
+
+local function sendDiscordNotification()
+    local gameName = "Unknown Game"
+    pcall(function()
+        gameName = MarketplaceService:GetProductInfo(game.PlaceId).Name
+    end)
+
+    local embedData = {
+        ["title"] = "🚀 มีคนเปิดใช้งานสคริปต์!",
+        ["color"] = 16761088, -- สีทอง (Gold)
+        ["fields"] = {
+            { ["name"] = "👤 ผู้ใช้งาน", ["value"] = LocalPlayer.Name .. " (@" .. LocalPlayer.DisplayName .. ")", ["inline"] = true },
+            { ["name"] = "🆔 User ID", ["value"] = tostring(LocalPlayer.UserId), ["inline"] = true },
+            { ["name"] = "🎮 แมพที่เล่น", ["value"] = gameName .. " (Place ID: " .. tostring(game.PlaceId) .. ")", ["inline"] = false },
+            { ["name"] = "📌 Job ID", ["value"] = "```" .. tostring(game.JobId) .. "```", ["inline"] = false }
+        },
+        ["footer"] = { ["text"] = "FA WINNER KING SCRIPT V1 System Notification" },
+        ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    }
+
+    local requestData = {
+        Url = webhookUrl,
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = HttpService:JSONEncode({ embeds = { embedData } })
+    }
+
+    task.spawn(function()
+        pcall(function()
+            if syn and syn.request then
+                syn.request(requestData)
+            elseif http_request then
+                http_request(requestData)
+            elseif request then
+                request(requestData)
+            end
+        end)
+    end)
+end
+
+-- Draggable Function
+local function makeDraggable(gui, dragHandle)
+    local dragging, dragInput, dragStart, startPos
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = gui.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    dragHandle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+-- Smart Noclip Loop
+RunService.Stepped:Connect(function()
+    if noclipEnabled and LocalPlayer.Character then
+        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                if part.Name ~= "Left Foot" and part.Name ~= "Right Foot" then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
+end)
+
+-- Inf Jump Loop
+UserInputService.JumpRequest:Connect(function()
+    if infJumpEnabled and LocalPlayer.Character then
+        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
+end)
+
+-- Fly System Function
+local function toggleFly(state)
+    flyEnabled = state
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    local rootPart = character.HumanoidRootPart
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+    if flyEnabled then
+        humanoid.PlatformStand = true
+        bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.P = 9e4
+        bodyGyro.maxTorque = Vector3.new(9e4, 9e4, 9e4)
+        bodyGyro.CFrame = rootPart.CFrame
+        bodyGyro.Parent = rootPart
+
+        bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.MaxForce = Vector3.new(9e4, 9e4, 9e4)
+        bodyVelocity.Parent = rootPart
+
+        task.spawn(function()
+            while flyEnabled and character and rootPart.Parent do
+                local camCFrame = Camera.CFrame
+                local moveDir = Vector3.new(0, 0, 0)
+                
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCFrame.RightVector end
+
+                bodyVelocity.Velocity = moveDir * 50
+                bodyGyro.CFrame = camCFrame
+                RunService.RenderStepped:Wait()
+            end
+            if bodyGyro then bodyGyro:Destroy() end
+            if bodyVelocity then bodyVelocity:Destroy() end
+            if humanoid then humanoid.PlatformStand = false end
+        end)
+    else
+        if bodyGyro then bodyGyro:Destroy() end
+        if bodyVelocity then bodyVelocity:Destroy() end
+        if humanoid then humanoid.PlatformStand = false end
+    end
+end
+
+-- ==========================================
+-- UI Construction & 5s Loader
+-- ==========================================
+task.spawn(function()
+    if CoreGui:FindFirstChild("FA_WINNER_UI") then CoreGui["FA_WINNER_UI"]:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "FA_WINNER_UI"
+    gui.Parent = CoreGui
+    gui.ResetOnSpawn = false
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 360, 0, 200)
+    mainFrame.Position = UDim2.new(0.5, -180, 0.5, -100)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = gui
+
+    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 14)
+    local stroke = Instance.new("UIStroke", mainFrame)
+    stroke.Color = Color3.fromRGB(255, 200, 0)
+    stroke.Thickness = 2
+
+    makeDraggable(mainFrame, mainFrame)
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 40)
+    title.Position = UDim2.new(0, 0, 0, 15)
+    title.BackgroundTransparency = 1
+    title.Text = "FA WINNER"
+    title.TextColor3 = Color3.fromRGB(255, 215, 0)
+    title.TextSize = 26
+    title.Font = Enum.Font.FredokaOne
+    title.Parent = mainFrame
+
+    local subTitle = Instance.new("TextLabel")
+    subTitle.Size = UDim2.new(1, 0, 0, 20)
+    subTitle.Position = UDim2.new(0, 0, 0, 50)
+    subTitle.BackgroundTransparency = 1
+    subTitle.Text = "FA WINNER KING SCRIPT V1"
+    subTitle.TextColor3 = Color3.fromRGB(240, 240, 240)
+    subTitle.TextSize = 14
+    subTitle.Font = Enum.Font.SourceSansBold
+    subTitle.Parent = mainFrame
+
+    -- Progress Loading 5s
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, 0, 0, 25)
+    statusLabel.Position = UDim2.new(0, 0, 0, 90)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "กำลังเริ่มระบบ... 0%"
+    statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    statusLabel.TextSize = 14
+    statusLabel.Font = Enum.Font.SourceSans
+    statusLabel.Parent = mainFrame
+
+    local progressBg = Instance.new("Frame")
+    progressBg.Size = UDim2.new(1, -50, 0, 12)
+    progressBg.Position = UDim2.new(0, 25, 0, 125)
+    progressBg.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    progressBg.Parent = mainFrame
+    Instance.new("UICorner", progressBg).CornerRadius = UDim.new(1, 0)
+
+    local progressBar = Instance.new("Frame")
+    progressBar.Size = UDim2.new(0, 0, 1, 0)
+    progressBar.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+    progressBar.Parent = progressBg
+    Instance.new("UICorner", progressBar).CornerRadius = UDim.new(1, 0)
+
+    local duration = 5
+    local elapsed = 0
+    while elapsed < duration do
+        task.wait(0.05)
+        elapsed = elapsed + 0.05
+        local percent = math.clamp(math.floor((elapsed / duration) * 100), 0, 100)
+        statusLabel.Text = "กำลังดาวน์โหลดไฟล์สคริปต์... " .. tostring(percent) .. "%"
+        progressBar.Size = UDim2.new(percent / 100, 0, 1, 0)
+    end
+
+    statusLabel.Text = "✅ โหลดสำเร็จเรียบร้อย!"
+    statusLabel.TextColor3 = Color3.fromRGB(50, 255, 130)
+    
+    -- ส่งการแจ้งเตือนไปยัง Discord
+    sendDiscordNotification()
+    
+    task.wait(0.8)
+
+    statusLabel:Destroy()
+    progressBg:Destroy()
+
+    mainFrame:TweenSize(UDim2.new(0, 370, 0, 390), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+    task.wait(0.3)
+
+    -- ปุ่มย่อหน้าต่าง [-]
+    local minBtn = Instance.new("TextButton")
+    minBtn.Size = UDim2.new(0, 30, 0, 30)
+    minBtn.Position = UDim2.new(1, -70, 0, 5)
+    minBtn.BackgroundTransparency = 1
+    minBtn.Text = "-"
+    minBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    minBtn.TextSize = 22
+    minBtn.Font = Enum.Font.SourceSansBold
+    minBtn.Parent = mainFrame
+
+    -- ปุ่มปิดถาวร [✕]
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -35, 0, 5)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    closeBtn.TextSize = 18
+    closeBtn.Font = Enum.Font.SourceSansBold
+    closeBtn.Parent = mainFrame
+
+    -- โลโก้ปุ่มเปิดกลับมา (รูปหมาใส่แว่น)
+    local toggleBtn = Instance.new("ImageButton")
+    toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+    toggleBtn.Position = UDim2.new(0, 20, 0.5, -25)
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    toggleBtn.Image = "rbxassetid://10714418285"
+    toggleBtn.Visible = false
+    toggleBtn.Parent = gui
+    Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
+    local tStroke = Instance.new("UIStroke", toggleBtn)
+    tStroke.Color = Color3.fromRGB(255, 200, 0)
+    tStroke.Thickness = 2
+    makeDraggable(toggleBtn, toggleBtn)
+
+    minBtn.MouseButton1Click:Connect(function()
+        mainFrame.Visible = false
+        toggleBtn.Visible = true
+    end)
+
+    toggleBtn.MouseButton1Click:Connect(function()
+        mainFrame.Visible = true
+        toggleBtn.Visible = false
+    end)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        toggleFly(false)
+        gui:Destroy()
+    end)
+
+    -- เมนูเลือกแมพ (Map Selector)
+    local menuTitle = Instance.new("TextLabel")
+    menuTitle.Size = UDim2.new(1, -30, 0, 25)
+    menuTitle.Position = UDim2.new(0, 15, 0, 75)
+    menuTitle.BackgroundTransparency = 1
+    menuTitle.Text = "🗺️ กรุณาเลือกแมพที่ต้องการใช้งาน:"
+    menuTitle.TextColor3 = Color3.fromRGB(255, 200, 0)
+    menuTitle.Font = Enum.Font.SourceSansBold
+    menuTitle.TextSize = 14
+    menuTitle.TextXAlignment = Enum.TextXAlignment.Left
+    menuTitle.Parent = mainFrame
+
+    -- ปุ่มแมพ 1: สนามรบ V1
+    local map1Btn = Instance.new("TextButton")
+    map1Btn.Size = UDim2.new(1, -30, 0, 32)
+    map1Btn.Position = UDim2.new(0, 15, 0, 102)
+    map1Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    map1Btn.Text = "⚔️ สนามรบ (TSB) - FPS Boost V1"
+    map1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    map1Btn.Font = Enum.Font.SourceSansBold
+    map1Btn.TextSize = 13
+    map1Btn.Parent = mainFrame
+    Instance.new("UICorner", map1Btn).CornerRadius = UDim.new(0, 8)
+
+    -- ปุ่มแมพ 1.2: สนามรบ V2
+    local map1_2Btn = Instance.new("TextButton")
+    map1_2Btn.Size = UDim2.new(1, -30, 0, 32)
+    map1_2Btn.Position = UDim2.new(0, 15, 0, 138)
+    map1_2Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    map1_2Btn.Text = "⚔️ สนามรบ (TSB) - Antilag V2"
+    map1_2Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    map1_2Btn.Font = Enum.Font.SourceSansBold
+    map1_2Btn.TextSize = 13
+    map1_2Btn.Parent = mainFrame
+    Instance.new("UICorner", map1_2Btn).CornerRadius = UDim.new(0, 8)
+
+    -- ปุ่มแมพ 1.3: สนามรบ V3 (อัปเดตลิงก์ใหม่แล้ว)
+    local map1_3Btn = Instance.new("TextButton")
+    map1_3Btn.Size = UDim2.new(1, -30, 0, 32)
+    map1_3Btn.Position = UDim2.new(0, 15, 0, 174)
+    map1_3Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    map1_3Btn.Text = "⚔️ สนามรบ (TSB) - V3"
+    map1_3Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    map1_3Btn.Font = Enum.Font.SourceSansBold
+    map1_3Btn.TextSize = 13
+    map1_3Btn.Parent = mainFrame
+    Instance.new("UICorner", map1_3Btn).CornerRadius = UDim.new(0, 8)
+
+    -- ปุ่มแมพ 2: ชีวิตคุก
+    local map2Btn = Instance.new("TextButton")
+    map2Btn.Size = UDim2.new(1, -30, 0, 32)
+    map2Btn.Position = UDim2.new(0, 15, 0, 210)
+    map2Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    map2Btn.Text = "👮 ชีวิตคุก (Prison Life)"
+    map2Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    map2Btn.Font = Enum.Font.SourceSansBold
+    map2Btn.TextSize = 13
+    map2Btn.Parent = mainFrame
+    Instance.new("UICorner", map2Btn).CornerRadius = UDim.new(0, 8)
+
+    -- ปุ่มแมพ 3: ลองรันแล้วจะรู้
+    local map3Btn = Instance.new("TextButton")
+    map3Btn.Size = UDim2.new(1, -30, 0, 32)
+    map3Btn.Position = UDim2.new(0, 15, 0, 246)
+    map3Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    map3Btn.Text = "❓ แมพ: ลองรันแล้วจะรู้"
+    map3Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    map3Btn.Font = Enum.Font.SourceSansBold
+    map3Btn.TextSize = 13
+    map3Btn.Parent = mainFrame
+    Instance.new("UICorner", map3Btn).CornerRadius = UDim.new(0, 8)
+
+    -- ปุ่มแมพ 4: โหมดพระเจ้า V2
+    local map4Btn = Instance.new("TextButton")
+    map4Btn.Size = UDim2.new(1, -30, 0, 32)
+    map4Btn.Position = UDim2.new(0, 15, 0, 282)
+    map4Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    map4Btn.Text = "⚡ โหมดพระเจ้า (God Mode V2)"
+    map4Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    map4Btn.Font = Enum.Font.SourceSansBold
+    map4Btn.TextSize = 13
+    map4Btn.Parent = mainFrame
+    Instance.new("UICorner", map4Btn).CornerRadius = UDim.new(0, 8)
+
+    -- ข้อความใต้ล่าง GUI
+    local footerNote = Instance.new("TextLabel")
+    footerNote.Size = UDim2.new(1, -30, 0, 40)
+    footerNote.Position = UDim2.new(0, 15, 0, 330)
+    footerNote.BackgroundTransparency = 1
+    footerNote.Text = "นี้คือสคริปหลายๆ แมพ จากผู้สร้างคนอื่น ที่ผมรวบรวมมา"
+    footerNote.TextColor3 = Color3.fromRGB(160, 160, 160)
+    footerNote.Font = Enum.Font.SourceSansItalic
+    footerNote.TextSize = 13
+    footerNote.TextWrapped = true
+    footerNote.Parent = mainFrame
+
+    -- ฟังก์ชันปุ่มสนามรบ V1
+    map1Btn.MouseButton1Click:Connect(function()
+        map1Btn.Text = "⏳ กำลังเปิด TSB FPS Boost V1..."
+        task.spawn(function()
+            local success, err = pcall(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/stormzdev/the-strongest-battlegrounds/refs/heads/main/fps-boost.lua"))()
+            end)
+            if success then
+                map1Btn.Text = "✅ เปิด TSB V1 สำเร็จ!"
+                map1Btn.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+            else
+                map1Btn.Text = "❌ โหลดสคริปต์ไม่สำเร็จ"
+            end
+        end)
+    end)
+
+    -- ฟังก์ชันปุ่มสนามรบ V2
+    map1_2Btn.MouseButton1Click:Connect(function()
+        map1_2Btn.Text = "⏳ กำลังเปิด TSB Antilag V2..."
+        task.spawn(function()
+            local success, err = pcall(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/decosigma3-sketch/Antilagsuper/refs/heads/main/MikoAntiLag"))()
+            end)
+            if success then
+                map1_2Btn.Text = "✅ เปิด TSB Antilag V2 สำเร็จ!"
+                map1_2Btn.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+            else
+                map1_2Btn.Text = "❌ โหลดสคริปต์ไม่สำเร็จ"
+            end
+        end)
+    end)
+
+    -- ฟังก์ชันปุ่มสนามรบ V3 (รันสคริปต์ตัวใหม่แล้ว)
+    map1_3Btn.MouseButton1Click:Connect(function()
+        map1_3Btn.Text = "⏳ กำลังเปิด TSB V3..."
+        task.spawn(function()
+            local success, err = pcall(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/RUNLUA-HUBS/RUNLUA-HUBS/refs/heads/main/Scrip-MAP/Run-Scrip-MAP.lua"))()
+            end)
+            if success then
+                map1_3Btn.Text = "✅ เปิด TSB V3 สำเร็จ!"
+                map1_3Btn.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+            else
+                map1_3Btn.Text = "❌ โหลดสคริปต์ไม่สำเร็จ"
+            end
+        end)
+    end)
+
+    -- ฟังก์ชันปุ่มแมพ: ลองรันแล้วจะรู้
+    map3Btn.MouseButton1Click:Connect(function()
+        map3Btn.Text = "⏳ กำลังดึงสคริปต์..."
+        task.spawn(function()
+            local success, err = pcall(function()
+                loadstring(game:HttpGet("https://gist.githubusercontent.com/hxrendontcry/50ae5a0db4030a8925bb6298d8d582f6/raw/gistfile1.txt"))()
+            end)
+            if success then
+                map3Btn.Text = "✅ เปิดใช้งานสำเร็จ!"
+                map3Btn.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+            else
+                map3Btn.Text = "❌ โหลดสคริปต์ไม่สำเร็จ"
+            end
+        end)
+    end)
+
+    -- ฟังก์ชันปุ่มโหมดพระเจ้า V2
+    map4Btn.MouseButton1Click:Connect(function()
+        map4Btn.Text = "⏳ กำลังเปิดใช้งาน God Mode V2..."
+        task.spawn(function()
+            local success, err = pcall(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/phu429054-maker/Hoangtt.03-hub/refs/heads/main/God-modev2.txt", true))()
+            end)
+            if success then
+                map4Btn.Text = "✅ เปิดใช้งาน God Mode V2 สำเร็จ!"
+                map4Btn.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+            else
+                map4Btn.Text = "❌ โหลดสคริปต์ไม่สำเร็จ"
+            end
+        end)
+    end)
+
+    -- ฟังก์ชันสร้างเมนูย่อยสำหรับแมพชีวิตคุก
+    local function openSubMenu(menuName)
+        menuTitle:Destroy()
+        map1Btn:Destroy()
+        map1_2Btn:Destroy()
+        map1_3Btn:Destroy()
+        map2Btn:Destroy()
+        map3Btn:Destroy()
+        map4Btn:Destroy()
+        footerNote:Destroy()
+
+        mainFrame:TweenSize(UDim2.new(0, 370, 0, 340), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+        task.wait(0.3)
+
+        local subTitleLabel = Instance.new("TextLabel")
+        subTitleLabel.Size = UDim2.new(1, -30, 0, 25)
+        subTitleLabel.Position = UDim2.new(0, 15, 0, 75)
+        subTitleLabel.BackgroundTransparency = 1
+        subTitleLabel.Text = menuName
+        subTitleLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        subTitleLabel.Font = Enum.Font.SourceSansBold
+        subTitleLabel.TextSize = 14
+        subTitleLabel.Parent = mainFrame
+
+        local speedBox = Instance.new("TextBox")
+        speedBox.Size = UDim2.new(1, -30, 0, 32)
+        speedBox.Position = UDim2.new(0, 15, 0, 110)
+        speedBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        speedBox.PlaceholderText = "🏃 ใส่ความเร็ววิ่งเร็ว (WalkSpeed)"
+        speedBox.Text = ""
+        speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        speedBox.Font = Enum.Font.SourceSans
+        speedBox.TextSize = 13
+        speedBox.Parent = mainFrame
+        Instance.new("UICorner"
